@@ -10,6 +10,18 @@ class ApiError extends Error {
   }
 }
 
+function getErrorMessage(body, fallback) {
+  if (!body) return fallback;
+  if (typeof body === 'string') return body;
+  if (body.detail || body.error) return body.detail || body.error;
+
+  const messages = Object.entries(body).flatMap(([field, value]) => {
+    const values = Array.isArray(value) ? value : [value];
+    return values.map((message) => `${field}: ${message}`);
+  });
+  return messages.join(', ') || fallback;
+}
+
 function getHeaders() {
   const token = localStorage.getItem('access_token');
   return {
@@ -37,11 +49,7 @@ export async function apiFetch(path, options = {}) {
     } catch {
       body = await res.text().catch(() => null);
     }
-    const message =
-      (body && typeof body === 'object' && (body.detail || body.error)) ||
-      (body && typeof body === 'string' && body) ||
-      res.statusText ||
-      'Request failed';
+    const message = getErrorMessage(body, res.statusText || 'Request failed');
     throw new ApiError(message, res.status, body);
   }
 

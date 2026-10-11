@@ -5,6 +5,7 @@ from django.db import migrations
 
 def backfill_periods(apps, schema_editor):
     School = apps.get_model('accounts', 'School')
+    Student = apps.get_model('students', 'Student')
     AcademicYear = apps.get_model('accounts', 'AcademicYear')
     Term = apps.get_model('accounts', 'Term')
     Course = apps.get_model('courses', 'Course')
@@ -42,6 +43,7 @@ def backfill_periods(apps, schema_editor):
     for school in School.objects.all().iterator():
         has_records = (
             Course.objects.filter(school_id=school.pk).exists()
+            or Student.objects.filter(school_id=school.pk).exists()
             or Attendance.objects.filter(student__school_id=school.pk).exists()
             or Result.objects.filter(student__school_id=school.pk).exists()
             or Invoice.objects.filter(school_id=school.pk).exists()

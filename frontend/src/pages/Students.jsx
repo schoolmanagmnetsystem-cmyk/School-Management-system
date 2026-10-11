@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { api } from '../utils/api';
 
-const emptyForm = { username: '', email: '', password: '', first_name: '', last_name: '', phone: '', roll_number: '', class_name: '', section: '', date_of_birth: '' };
+const emptyForm = { username: '', email: '', password: '', first_name: '', last_name: '', phone: '', roll_number: '', class_name: '', section: '', date_of_birth: '', academic_year: '' };
 
 const Students = () => {
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
@@ -9,6 +9,7 @@ const Students = () => {
   const canEdit = ['admin', 'school_admin', 'receptionist'].includes(currentUser.role);
   const isReceptionist = currentUser.role === 'receptionist';
   const [students, setStudents] = useState([]);
+  const [academicYears, setAcademicYears] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -17,16 +18,24 @@ const Students = () => {
   const [saving, setSaving] = useState(false);
   const receptionistContactEdit = isReceptionist && Boolean(editId);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const stu = await api.get('/students/');
       const studentList = stu.results || stu;
       setStudents(studentList);
     } catch { setError('Failed to load student data.'); }
     finally { setLoading(false); }
-  };
+    if (canCreate) {
+      try {
+        const yearData = await api.get('/auth/academic-years/');
+        setAcademicYears(yearData.results || yearData);
+      } catch (requestError) {
+        setError(requestError.message || 'Failed to load academic years.');
+      }
+    }
+  }, [canCreate]);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -50,6 +59,7 @@ const Students = () => {
           last_name: form.last_name,
           phone: form.phone,
           role: 'student',
+          academic_year: form.academic_year,
           roll_number: form.roll_number,
           class_name: form.class_name,
           section: form.section,
@@ -59,14 +69,7 @@ const Students = () => {
       setForm(emptyForm); setEditId(null); setShowForm(false);
       loadData();
     } catch (e) {
-      let message = e.message;
-      try {
-        const errObj = JSON.parse(e.message || '{}');
-        message = errObj.detail || Object.values(errObj).flat().join(', ') || message;
-      } catch {
-        message = 'Error saving student. Ensure the provided user data is correct.';
-      }
-      setError(message);
+      setError(e.message || 'Error saving student. Please check the form and try again.');
     } finally { setSaving(false); }
   };
 
@@ -82,6 +85,7 @@ const Students = () => {
       class_name: s.class_name,
       section: s.section,
       date_of_birth: s.date_of_birth || '',
+      academic_year: '',
     });
     setEditId(s.id); setShowForm(true);
   };
@@ -104,7 +108,15 @@ const Students = () => {
 
           {!receptionistContactEdit && <div>
             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Username *</label>
-            <input required value={form.username} onChange={e => setForm({...form, username: e.target.value})} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+            <input
+              required
+              pattern="^[A-Za-z0-9@.+_-]+$"
+              title="Use only letters, numbers, and @ . + - _ (no spaces)."
+              value={form.username}
+              onChange={e => setForm({...form, username: e.target.value.replace(/\s+/g, '_')})}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            />
+            <p className="mt-1 text-xs text-gray-500">Use letters, numbers, or @ . + - _; spaces are not allowed.</p>
           </div>}
 
           {!receptionistContactEdit && <div>
@@ -142,6 +154,24 @@ const Students = () => {
           {!receptionistContactEdit && <div>
             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Section</label>
             <input value={form.section} onChange={e => setForm({...form, section: e.target.value})} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+          </div>}
+
+          {!editId && !receptionistContactEdit && <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Academic Year *</label>
+            <select
+              required
+              value={form.academic_year}
+              onChange={e => setForm({...form, academic_year: e.target.value})}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="">Select active academic year</option>
+              {academicYears.filter(year => year.is_active).map(year => (
+                <option key={year.id} value={year.id}>{year.name}</option>
+              ))}
+            </select>
+            {academicYears.filter(year => year.is_active).length === 0 && (
+              <p className="mt-1 text-xs text-red-600">Create and activate an academic year before adding students.</p>
+            )}
           </div>}
 
           <div>

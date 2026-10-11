@@ -119,7 +119,7 @@ class SchoolAcademicAccessPermission(BasePermission):
             return False
         if request.user.role in {'admin', 'school_admin'}:
             return True
-        return request.user.role in {'principal', 'accountant'} and request.method in SAFE_METHODS
+        return request.user.role in {'principal', 'accountant', 'receptionist'} and request.method in SAFE_METHODS
 
 
 class SchoolAcademicYearViewSet(viewsets.ModelViewSet):

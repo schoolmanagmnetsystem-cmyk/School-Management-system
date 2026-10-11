@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.db import transaction
+from django.core.exceptions import ValidationError
 from .models import AcademicYear, CustomUser, Guardian, School, Term
 from accounts.periods import resolve_school_period
 from students.models import Student
@@ -7,6 +8,9 @@ from teachers.models import Teacher
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
+    academic_year = serializers.PrimaryKeyRelatedField(
+        queryset=AcademicYear.objects.all(), required=False, write_only=True
+    )
     roll_number = serializers.CharField(required=False, allow_blank=True)
     class_name = serializers.CharField(required=False, allow_blank=True)
     section = serializers.CharField(required=False, allow_blank=True)
@@ -20,7 +24,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = (
             'id', 'username', 'email', 'password', 'first_name', 'last_name', 'role',
-            'roll_number', 'class_name', 'section', 'date_of_birth', 'department', 'designation', 'phone', 'student_ids',
+            'roll_number', 'class_name', 'section', 'date_of_birth', 'department', 'designation',
+            'phone', 'student_ids', 'academic_year',
         )
 
     def validate(self, attrs):
@@ -38,6 +43,15 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Your account is not assigned to an active school.')
 
         if role == 'student':
+            academic_year = attrs.get('academic_year')
+            try:
+                if academic_year and (
+                    academic_year.school_id != actor.school_id or not academic_year.is_active
+                ):
+                    raise ValidationError('Select an active academic year from your school.')
+                resolve_school_period(actor.school, academic_year=academic_year)
+            except ValidationError as exc:
+                raise serializers.ValidationError({'academic_period': exc.messages})
             missing = []
             for field in ['roll_number', 'class_name', 'section']:
                 if not attrs.get(field):
@@ -64,6 +78,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         request = self.context['request']
         role = validated_data.get('role')
         linked_students = validated_data.pop('student_ids', [])
+        academic_year = validated_data.pop('academic_year', None)
         student_data = {
             'roll_number': validated_data.pop('roll_number', None),
             'class_name': validated_data.pop('class_name', None),
@@ -78,7 +93,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         if role == 'student':
             student = Student.objects.create(user=user, school=request.user.school, **student_data)
-            year, term = resolve_school_period(request.user.school)
+            year, term = resolve_school_period(request.user.school, academic_year=academic_year)
             from students.models import StudentAcademicHistory
             StudentAcademicHistory.objects.create(
                 student=student, school=request.user.school, academic_year=year, term=term,
