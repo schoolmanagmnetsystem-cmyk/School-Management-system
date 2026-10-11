@@ -1,6 +1,6 @@
 import React from 'react';
-import { NavLink, Link } from 'react-router-dom';
-import { ChevronDown, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 
 const PublicNavbar = () => {
   return (
@@ -31,12 +31,6 @@ const PublicNavbar = () => {
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
           Login
-        </Link>
-        <Link 
-          to="/register" 
-          className="px-6 py-2 rounded-lg bg-[#5B45F2] hover:bg-[#4a36d9] text-white font-bold text-sm transition-colors shadow-lg shadow-[#5B45F2]/30"
-        >
-          Sign Up Now
         </Link>
       </div>
     </header>

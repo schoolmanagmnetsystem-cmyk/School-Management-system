@@ -1,6 +1,5 @@
 import React from 'react';
 import { ShieldCheck, BookOpen, Users, BarChart3, CheckCircle2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 const LandingPage = () => {
   return (
@@ -32,11 +31,6 @@ const LandingPage = () => {
               Manage your school, college, or educational institution seamlessly with H-School. Everything you need, completely free for life.
             </p>
 
-            <div className="flex items-center justify-center lg:justify-start gap-4 pt-4">
-              <Link to="/register" className="px-8 py-4 rounded-lg bg-[#5B45F2] hover:bg-[#4a36d9] text-white font-bold text-lg transition-colors shadow-lg shadow-[#5B45F2]/40">
-                Get Started Now
-              </Link>
-            </div>
           </div>
 
           {/* Right: Single Image Section */}
@@ -119,4 +113,3 @@ const LandingPage = () => {
 };
 
 export default LandingPage;
-

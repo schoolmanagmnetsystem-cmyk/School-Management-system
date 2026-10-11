@@ -22,7 +22,7 @@ Configure these variables in the deployment platform's secret/environment manage
 
 Set the production frontend origin explicitly. Keep `CORS_ALLOW_CREDENTIALS=false` unless a reviewed cross-origin cookie-authentication requirement exists; the API currently uses bearer tokens.
 
-For a Vite build served from the same origin as the API proxy, the frontend defaults to `/api`. For a separate API host, build with `VITE_API_BASE_URL=https://api.example.com/api`.
+For a Vite build served from the same origin as the API proxy, the frontend defaults to `/api`. For a separate API host, build with `VITE_API_BASE_URL=https://api.example.com/api`. The frontend also accepts the backend origin without the `/api` suffix and adds it automatically.
 
 ## Release Steps
 

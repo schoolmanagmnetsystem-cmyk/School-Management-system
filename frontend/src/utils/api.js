@@ -1,6 +1,9 @@
 // Shared API utility - reads JWT token from localStorage and sets Authorization header
 
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').trim().replace(/\/+$/, '');
+const BASE_URL = configuredBaseUrl === '/api' || configuredBaseUrl.endsWith('/api')
+  ? configuredBaseUrl
+  : `${configuredBaseUrl || ''}/api`;
 
 class ApiError extends Error {
   constructor(message, status, body) {
