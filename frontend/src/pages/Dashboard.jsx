@@ -1,107 +1,414 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../utils/api';
 import { Link } from 'react-router-dom';
+import {
+  Users,
+  GraduationCap,
+  Calendar,
+  ClipboardCheck,
+  CreditCard,
+  BookOpen,
+  Shield,
+  ArrowRight,
+  Plus,
+  Sparkles,
+  Building2,
+  RefreshCw,
+} from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import { api } from '../utils/api';
+import {
+  StatCard,
+  ProtocolBanner,
+  BreadcrumbNav,
+} from '../components/common/StitchUI';
+
+const DASH = '—';
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const [error, setError] = useState('');
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+
+  const loadDashboard = () =>
+    api.get('/dashboard/')
+      .then((data) => {
+        setStats(data);
+        setError('');
+      })
+      .catch((err) => setError(err.message || 'Unable to load dashboard data.'))
+      .finally(() => setLoading(false));
 
   useEffect(() => {
-    api.get('/dashboard/')
-      .then(setStats)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    loadDashboard();
   }, []);
 
-  const isTeacher = user.role === 'teacher';
-  const isStudent = user.role === 'student';
-  const isPrincipal = user.role === 'principal';
-  const isAccountant = user.role === 'accountant';
-  const isReceptionist = user.role === 'receptionist';
-  const isParent = user.role === 'parent';
-  const isSchoolAdmin = user.role === 'school_admin' || user.role === 'admin';
-  const isSuperAdmin = user.role === 'super_admin';
+  const role = user.role;
+  const payload = stats || {};
+  const schoolLabel = payload.school_name || user.school_name || 'H-School';
 
-  const cards = isSuperAdmin ? [
-    { label: 'Schools', value: stats?.total_schools ?? 'Data unavailable', path: '/platform', color: 'bg-blue-500' },
-    { label: 'Active Schools', value: stats?.active_schools ?? 'Data unavailable', path: '/platform', color: 'bg-emerald-500' },
-    { label: 'Active Users', value: stats?.active_users ?? 'Data unavailable', path: '/platform', color: 'bg-purple-500' },
-    { label: 'Audit Events', value: stats?.recent_audit_events?.length ?? 'Data unavailable', path: '/platform', color: 'bg-yellow-500' },
-  ] : isTeacher ? [
-    { label: 'Assigned Classes', value: stats?.assigned_classes ?? 'Data unavailable', path: '/courses', color: 'bg-blue-500' },
-    { label: 'Assigned Subjects', value: stats?.assigned_subjects ?? 'Data unavailable', path: '/courses', color: 'bg-purple-500' },
-    { label: "Today's Attendance", value: stats?.today_attendance ?? 'Data unavailable', path: '/attendance', color: 'bg-emerald-500' },
-    { label: 'Pending Attendance', value: stats?.pending_attendance ?? 'Data unavailable', path: '/attendance', color: 'bg-yellow-500' },
-  ] : isStudent ? [
-    { label: 'Current Class', value: stats?.current_class ?? 'Data unavailable', path: '/students', color: 'bg-blue-500' },
-    { label: 'Attendance', value: stats?.attendance_summary?.total ?? 'Data unavailable', path: '/attendance', color: 'bg-emerald-500' },
-    { label: 'Pending Fees', value: stats?.pending_fees ?? 'Data unavailable', path: '/finance', color: 'bg-yellow-500' },
-    { label: 'Recent Results', value: stats?.recent_results?.length ?? 'Data unavailable', path: '/results', color: 'bg-purple-500' },
-  ] : isParent ? [
-    { label: 'Children', value: stats?.children?.length ?? 'Data unavailable', path: '/students', color: 'bg-blue-500' },
-    { label: 'Attendance Records', value: stats?.attendance_records ?? 'Data unavailable', path: '/attendance', color: 'bg-emerald-500' },
-    { label: 'Published Results', value: stats?.published_results ?? 'Data unavailable', path: '/results', color: 'bg-purple-500' },
-    { label: 'Invoices', value: stats?.invoices ?? 'Data unavailable', path: '/finance', color: 'bg-yellow-500' },
-  ] : isAccountant ? [
-    { label: 'Outstanding Fees', value: stats?.outstanding_fees ?? 'Data unavailable', path: '/finance', color: 'bg-blue-500' },
-    { label: 'Total Invoices', value: stats?.total_invoices ?? 'Data unavailable', path: '/finance', color: 'bg-purple-500' },
-    { label: 'Overdue Invoices', value: stats?.overdue_invoices ?? 'Data unavailable', path: '/finance', color: 'bg-emerald-500' },
-    { label: 'Recent Payments', value: stats?.recent_payments === 'Data unavailable' ? 'Data unavailable' : stats?.recent_payments ?? 'Data unavailable', path: '/finance', color: 'bg-yellow-500' },
-  ] : isPrincipal ? [
-    { label: 'Total Students', value: stats?.total_students ?? 'Data unavailable', path: '/students', color: 'bg-blue-500' },
-    { label: 'Teachers', value: stats?.total_teachers ?? 'Data unavailable', path: '/teachers', color: 'bg-purple-500' },
-    { label: 'Classes', value: stats?.total_courses ?? 'Data unavailable', path: '/courses', color: 'bg-emerald-500' },
-    { label: 'Attendance', value: stats?.attendance_summary?.total ?? 'Data unavailable', path: '/attendance', color: 'bg-yellow-500' },
-  ] : isReceptionist ? [
-    { label: 'Total Students', value: stats?.total_students ?? 'Data unavailable', path: '/students', color: 'bg-blue-500' },
-    { label: 'Teachers', value: stats?.total_teachers ?? 'Data unavailable', path: '/teachers', color: 'bg-purple-500' },
-    { label: 'Classes', value: stats?.total_courses ?? 'Data unavailable', path: '/courses', color: 'bg-emerald-500' },
-    { label: 'Admissions', value: stats?.total_students ?? 'Data unavailable', path: '/students', color: 'bg-yellow-500' },
-  ] : isSchoolAdmin ? [
-    { label: 'Total Students', value: stats?.total_students ?? 'Data unavailable', path: '/students', color: 'bg-blue-500' },
-    { label: 'Teachers', value: stats?.total_teachers ?? 'Data unavailable', path: '/teachers', color: 'bg-purple-500' },
-    { label: 'Classes', value: stats?.total_courses ?? 'Data unavailable', path: '/courses', color: 'bg-emerald-500' },
-    { label: 'Pending Fees', value: stats?.unpaid_invoices ?? 'Data unavailable', path: '/finance', color: 'bg-yellow-500' },
-  ] : [
-    { label: 'Total Students', value: stats?.total_students ?? '—', path: '/students', color: 'bg-blue-500' },
-    { label: 'Total Teachers', value: stats?.total_teachers ?? '—', path: '/teachers', color: 'bg-purple-500' },
-    { label: 'Total Courses', value: stats?.total_courses ?? '—', path: '/courses', color: 'bg-emerald-500' },
-    { label: 'Unpaid Invoices', value: stats?.unpaid_invoices ?? '—', path: '/finance', color: 'bg-yellow-500' },
-  ];
+  const attendanceRate = payload.attendance_summary && payload.attendance_summary.total
+    ? ((payload.attendance_summary.present / payload.attendance_summary.total) * 100).toFixed(1)
+    : null;
+
+  // ---- Role-specific metric cards (same layout/styling, real values only) ----
+  const metricCards = [];
+  const push = (card) => metricCards.push(card);
+
+  if (role === 'super_admin') {
+    push({ label: 'Institutions', value: payload.total_schools ?? DASH, subtext: 'Schools on the platform', icon: Building2 });
+    push({ label: 'Active Schools', value: payload.active_schools ?? DASH, subtext: 'Enabled institutions', icon: Users });
+    push({ label: 'Active Users', value: payload.active_users ?? DASH, subtext: 'Enabled accounts', icon: Shield });
+  } else if (['admin', 'school_admin', 'principal', 'receptionist'].includes(role)) {
+    push({ label: 'Enrolled Students', value: payload.total_students ?? DASH, subtext: 'Active student records', icon: GraduationCap });
+    push({ label: 'Faculty & Instructors', value: payload.total_teachers ?? DASH, subtext: 'Registered teaching staff', icon: Users });
+    push({ label: 'Course Units', value: payload.total_courses ?? DASH, subtext: 'Active courses', icon: BookOpen });
+    push({
+      label: 'Recorded Attendance',
+      value: attendanceRate !== null ? `${attendanceRate}%` : DASH,
+      subtext: payload.attendance_summary
+        ? `${payload.attendance_summary.present} of ${payload.attendance_summary.total} present`
+        : 'No attendance recorded',
+      icon: ClipboardCheck,
+    });
+  } else if (role === 'accountant') {
+    push({ label: 'Total Invoices', value: payload.total_invoices ?? DASH, subtext: 'Issued invoices', icon: CreditCard });
+    push({ label: 'Outstanding', value: payload.outstanding_fees ?? DASH, subtext: 'Unpaid or pending', icon: CreditCard });
+    push({ label: 'Paid Invoices', value: payload.paid_invoices ?? DASH, subtext: 'Settled invoices', icon: CreditCard });
+    push({ label: 'Overdue', value: payload.overdue_invoices ?? DASH, subtext: 'Past due date', icon: Calendar });
+  } else if (role === 'teacher') {
+    push({ label: 'Assigned Classes', value: payload.assigned_classes ?? DASH, subtext: 'Courses you teach', icon: BookOpen });
+    push({ label: "Today's Attendance", value: payload.today_attendance ?? DASH, subtext: 'Entries recorded today', icon: ClipboardCheck });
+    push({ label: 'Absences Today', value: payload.pending_attendance ?? DASH, subtext: 'Marked absent today', icon: Calendar });
+    push({ label: 'Results Recorded', value: payload.pending_marking_results ?? DASH, subtext: 'Across your courses', icon: GraduationCap });
+  } else if (role === 'student') {
+    push({ label: 'Current Class', value: payload.current_class || DASH, subtext: payload.current_section ? `Section ${payload.current_section}` : 'Enrolled class', icon: GraduationCap });
+    push({
+      label: 'Attendance',
+      value: attendanceRate !== null ? `${attendanceRate}%` : DASH,
+      subtext: payload.attendance_summary
+        ? `${payload.attendance_summary.present} of ${payload.attendance_summary.total} present`
+        : 'No attendance recorded',
+      icon: ClipboardCheck,
+    });
+    push({ label: 'Pending Fees', value: payload.pending_fees ?? DASH, subtext: 'Unpaid invoices', icon: CreditCard });
+    push({ label: 'Latest Results', value: Array.isArray(payload.recent_results) ? payload.recent_results.length : DASH, subtext: 'Recently published', icon: BookOpen });
+  } else if (role === 'parent') {
+    push({ label: 'Linked Children', value: Array.isArray(payload.children) ? payload.children.length : DASH, subtext: 'Students on your account', icon: Users });
+    push({ label: 'Attendance Records', value: payload.attendance_records ?? DASH, subtext: 'Logged entries', icon: ClipboardCheck });
+    push({ label: 'Published Results', value: payload.published_results ?? DASH, subtext: 'Released to guardians', icon: BookOpen });
+    push({ label: 'Invoices', value: payload.invoices ?? DASH, subtext: 'Fee records', icon: CreditCard });
+  }
+
+  if (metricCards.length < 4) {
+    push({ label: 'Session', value: 'Protected', subtext: 'Authenticated access enforced', icon: Shield });
+  }
+
+  // ---- Attendance breakdown chart (real data only; honest empty state otherwise) ----
+  const attendanceBreakdown = payload.attendance_summary
+    ? [
+        { name: 'Present', count: payload.attendance_summary.present ?? 0 },
+        { name: 'Absent', count: payload.attendance_summary.absent ?? 0 },
+        { name: 'Late', count: payload.attendance_summary.late ?? 0 },
+      ]
+    : null;
+  const hasAttendanceChart = attendanceBreakdown && payload.attendance_summary.total > 0;
+
+  // ---- Records summary rows (real values, role-aware) ----
+  const summaryRows = (() => {
+    if (role === 'super_admin') {
+      return [
+        { label: 'Institutions', value: payload.total_schools ?? DASH },
+        { label: 'Active schools', value: payload.active_schools ?? DASH },
+        { label: 'Active users', value: payload.active_users ?? DASH },
+        { label: 'Recent audit events', value: Array.isArray(payload.recent_audit_events) ? payload.recent_audit_events.length : DASH },
+      ];
+    }
+    if (['admin', 'school_admin', 'principal', 'receptionist'].includes(role)) {
+      return [
+        { label: 'Students', value: payload.total_students ?? DASH },
+        { label: 'Faculty', value: payload.total_teachers ?? DASH },
+        { label: 'Courses', value: payload.total_courses ?? DASH },
+        { label: 'Unpaid invoices', value: payload.unpaid_invoices ?? DASH },
+      ];
+    }
+    if (role === 'accountant') {
+      return [
+        { label: 'Total invoices', value: payload.total_invoices ?? DASH },
+        { label: 'Outstanding', value: payload.outstanding_fees ?? DASH },
+        { label: 'Paid', value: payload.paid_invoices ?? DASH },
+        { label: 'Overdue', value: payload.overdue_invoices ?? DASH },
+      ];
+    }
+    if (role === 'teacher') {
+      return [
+        { label: 'Assigned classes', value: payload.assigned_classes ?? DASH },
+        { label: 'Attendance entries today', value: payload.today_attendance ?? DASH },
+        { label: 'Absences today', value: payload.pending_attendance ?? DASH },
+        { label: 'Results recorded', value: payload.pending_marking_results ?? DASH },
+      ];
+    }
+    if (role === 'student') {
+      return [
+        { label: 'Class', value: payload.current_class || DASH },
+        { label: 'Section', value: payload.current_section || DASH },
+        { label: 'Pending fees', value: payload.pending_fees ?? DASH },
+        { label: 'Recent results', value: Array.isArray(payload.recent_results) ? payload.recent_results.length : DASH },
+      ];
+    }
+    if (role === 'parent') {
+      return [
+        { label: 'Linked children', value: Array.isArray(payload.children) ? payload.children.length : DASH },
+        { label: 'Attendance records', value: payload.attendance_records ?? DASH },
+        { label: 'Published results', value: payload.published_results ?? DASH },
+        { label: 'Invoices', value: payload.invoices ?? DASH },
+      ];
+    }
+    return [];
+  })();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user.username || 'Teacher'} 👋</h1>
-        <p className="text-slate-500 text-sm mt-1">H-School Management System — {isSuperAdmin ? 'Platform overview' : isTeacher ? 'Teacher overview' : isAccountant ? 'Accountant overview' : isPrincipal ? 'Principal overview' : isReceptionist ? 'Receptionist overview' : isSchoolAdmin ? 'School admin overview' : isParent ? 'Guardian overview' : 'Student overview'}</p>
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 font-sans" aria-busy={loading}>
+      {/* Breadcrumb Navigation */}
+      <BreadcrumbNav items={[schoolLabel, 'Operations', 'Dashboard']} />
+
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Welcome back, {user.first_name || user.username || 'there'} 👋
+            </h1>
+            {payload.current_academic_year && (
+              <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                Active AY {payload.current_academic_year}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            {schoolLabel} · Operational overview
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              loadDashboard();
+            }}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+          <Link
+            to="/students"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-sm shadow-indigo-600/25"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Students</span>
+          </Link>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="py-12 text-center text-gray-400">Loading dashboard...</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {cards.map(card => (
-            <Link key={card.label} to={card.path}
-              className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow block">
-              <div className={`w-10 h-10 ${card.color} rounded-lg mb-4`} />
-              <h3 className="text-gray-500 text-sm font-medium">{card.label}</h3>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{card.value}</p>
-            </Link>
-          ))}
+      {error && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium">
+          {error}
         </div>
       )}
 
-      {isSchoolAdmin && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-2">Quick Actions</h3>
-          <div className="flex gap-4 flex-wrap">
-            <Link to="/students" className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded font-medium text-sm hover:bg-blue-100 transition-colors">+ Add Student</Link>
-            <Link to="/teachers" className="px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded font-medium text-sm hover:bg-purple-100 transition-colors">+ Add Teacher</Link>
-            <Link to="/finance" className="px-4 py-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded font-medium text-sm hover:bg-yellow-100 transition-colors">+ Add Invoice</Link>
+      {/* Top Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {metricCards.map((card, index) => (
+          <StatCard
+            key={`${card.label}-${index}`}
+            label={card.label}
+            value={card.value}
+            subtext={card.subtext}
+            icon={card.icon}
+          />
+        ))}
+      </div>
+
+      {/* Safeguard Alert Banner */}
+      <ProtocolBanner
+        title="Academic Records & Session Policy"
+        description={`Attendance, published results and finance records are stored per academic term. Manage the active cycle from the academic calendar.${payload.school_name ? ` Institution: ${payload.school_name}.` : ''}`}
+        buttonText="View Academic Calendar"
+        onAction={() => { window.location.href = '/academic-periods'; }}
+      />
+
+      {/* Analytics Split Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left: Attendance breakdown (real data) */}
+        <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Recorded Attendance</h3>
+              <p className="text-xs text-slate-400">Present, absent and late entries</p>
+            </div>
+            {attendanceRate !== null && (
+              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
+                {attendanceRate}% present
+              </span>
+            )}
+          </div>
+
+          {hasAttendanceChart ? (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={attendanceBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                    formatter={(val) => [val, 'Entries']}
+                  />
+                  <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-64 w-full flex flex-col items-center justify-center text-center text-slate-400">
+              <ClipboardCheck className="w-8 h-8 mb-3 text-slate-300" />
+              <p className="text-sm font-semibold text-slate-500">No attendance data available</p>
+              <p className="text-xs mt-1">Attendance entries will appear here once recorded.</p>
+            </div>
+          )}
+
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>Scoped to your access level</span>
+            <Link to="/attendance" className="font-bold text-indigo-600 hover:underline flex items-center gap-1">
+              <span>Open attendance</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
-      )}
+
+        {/* Right: Records summary (real data) */}
+        <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Records Summary</h3>
+              <p className="text-xs text-slate-400">Live figures for your role</p>
+            </div>
+          </div>
+
+          {summaryRows.length > 0 ? (
+            <div className="space-y-3">
+              {summaryRows.map((row) => (
+                <div key={row.label} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                  <span className="text-xs font-medium text-slate-500">{row.label}</span>
+                  <span className="text-sm font-bold text-slate-900">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-40 flex flex-col items-center justify-center text-center text-slate-400">
+              <BookOpen className="w-8 h-8 mb-3 text-slate-300" />
+              <p className="text-sm font-semibold text-slate-500">No summary available</p>
+            </div>
+          )}
+
+          <div className="pt-2 border-t border-slate-100">
+            <Link to="/results" className="font-bold text-indigo-600 hover:underline flex items-center gap-1 text-xs">
+              <span>View results</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Operational Hub & Quick Action Cards */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs space-y-4">
+        <h3 className="text-sm font-bold text-slate-900">
+          Quick Actions & Workflows
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+          <Link
+            to="/students"
+            className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-all text-center space-y-1.5 block group"
+          >
+            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 group-hover:text-indigo-600 group-hover:border-indigo-200 flex items-center justify-center mx-auto transition-colors">
+              <GraduationCap className="w-4 h-4" />
+            </div>
+            <span className="font-bold text-slate-800 group-hover:text-indigo-700 block">Students</span>
+            <span className="text-[10px] text-slate-400 block">Registry</span>
+          </Link>
+
+          <Link
+            to="/attendance"
+            className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-all text-center space-y-1.5 block group"
+          >
+            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 group-hover:text-indigo-600 group-hover:border-indigo-200 flex items-center justify-center mx-auto transition-colors">
+              <ClipboardCheck className="w-4 h-4" />
+            </div>
+            <span className="font-bold text-slate-800 group-hover:text-indigo-700 block">Attendance</span>
+            <span className="text-[10px] text-slate-400 block">Daily Log</span>
+          </Link>
+
+          <Link
+            to="/academic-periods"
+            className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-all text-center space-y-1.5 block group"
+          >
+            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 group-hover:text-indigo-600 group-hover:border-indigo-200 flex items-center justify-center mx-auto transition-colors">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <span className="font-bold text-slate-800 group-hover:text-indigo-700 block">Academic Years</span>
+            <span className="text-[10px] text-slate-400 block">Manage Terms</span>
+          </Link>
+
+          <Link
+            to="/courses"
+            className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-all text-center space-y-1.5 block group"
+          >
+            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 group-hover:text-indigo-600 group-hover:border-indigo-200 flex items-center justify-center mx-auto transition-colors">
+              <BookOpen className="w-4 h-4" />
+            </div>
+            <span className="font-bold text-slate-800 group-hover:text-indigo-700 block">Courses</span>
+            <span className="text-[10px] text-slate-400 block">Class Units</span>
+          </Link>
+
+          <Link
+            to="/finance"
+            className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-all text-center space-y-1.5 block group"
+          >
+            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 group-hover:text-indigo-600 group-hover:border-indigo-200 flex items-center justify-center mx-auto transition-colors">
+              <CreditCard className="w-4 h-4" />
+            </div>
+            <span className="font-bold text-slate-800 group-hover:text-indigo-700 block">Finance</span>
+            <span className="text-[10px] text-slate-400 block">Invoices & Fees</span>
+          </Link>
+
+          <Link
+            to="/results"
+            className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-all text-center space-y-1.5 block group"
+          >
+            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 group-hover:text-indigo-600 group-hover:border-indigo-200 flex items-center justify-center mx-auto transition-colors">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <span className="font-bold text-slate-800 group-hover:text-indigo-700 block">Results</span>
+            <span className="text-[10px] text-slate-400 block">Exams & Grades</span>
+          </Link>
+        </div>
+      </div>
     </div>
   );
 };

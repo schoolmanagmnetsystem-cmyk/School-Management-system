@@ -1,4 +1,4 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
@@ -62,6 +62,13 @@ class Term(models.Model):
         return f'{self.academic_year}: {self.name}'
 
 
+class CustomUserManager(UserManager):
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        extra_fields['role'] = 'super_admin'
+        extra_fields['school'] = None
+        return super().create_superuser(username, email, password, **extra_fields)
+
+
 class CustomUser(AbstractUser):
     ROLE_CHOICES = (
         ('super_admin', 'Super Admin'),
@@ -78,6 +85,7 @@ class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     school = models.ForeignKey('School', on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
     phone = models.CharField(max_length=30, blank=True)
+    objects = CustomUserManager()
 
     class Meta:
         constraints = [

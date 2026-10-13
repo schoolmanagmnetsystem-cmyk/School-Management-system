@@ -1,123 +1,240 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Users,
+  GraduationCap,
+  UserCheck,
+  Calendar,
+  Clock,
+  BookOpen,
+  ClipboardCheck,
+  Award,
+  CreditCard,
+  Receipt,
+  Layers,
+  Sparkles,
+  ShieldAlert,
+  LogOut,
+  Briefcase
+} from 'lucide-react';
+import BrandLogo from '../common/BrandLogo';
+import { canAccessRoute } from '../../utils/roleAccess';
 
 const Sidebar = () => {
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-  const isStudent = currentUser.role === 'student';
-  const isSchoolAdmin = currentUser.role === 'school_admin' || currentUser.role === 'admin';
-  const isPrincipal = currentUser.role === 'principal';
-  const isAccountant = currentUser.role === 'accountant';
-  const isReceptionist = currentUser.role === 'receptionist';
-  const isParent = currentUser.role === 'parent';
-  const isSuperAdmin = currentUser.role === 'super_admin';
-  const menuList = isSuperAdmin ? [
-    { name: 'Platform Dashboard', path: '/dashboard' },
-    { name: 'Schools & Users', path: '/platform' },
-  ] : isStudent ? [
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'My Profile', path: '/students' },
-    { name: 'Attendance', path: '/attendance' },
-    { name: 'Exams & Results', path: '/results' },
-    { name: 'Fees & Payments', path: '/finance' },
-  ] : isParent ? [
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'Guardian Portal', path: '/guardians' },
-    { name: 'My Children', path: '/students' },
-    { name: 'Courses', path: '/courses' },
-    { name: 'Attendance', path: '/attendance' },
-    { name: 'Published Results', path: '/results' },
-    { name: 'Invoices & Payments', path: '/finance' },
-  ] : isAccountant ? [
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'Finance', path: '/finance' },
-    { name: 'Fee Structures', path: '/finance-operations' },
-    { name: 'Invoices', path: '/finance' },
-    { name: 'Payments', path: '/finance-operations' },
-    { name: 'Finance Audit', path: '/finance-operations' },
-    { name: 'Financial Reports', path: '/dashboard' },
-    { name: 'Announcements', path: '/dashboard' },
-    { name: 'Profile', path: '/dashboard' },
-    { name: 'Settings', path: '/dashboard' },
-  ] : isPrincipal ? [
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'Students', path: '/students' },
-    { name: 'Teachers', path: '/teachers' },
-    { name: 'Classes & Sections', path: '/courses' },
-    { name: 'Attendance', path: '/attendance' },
-    { name: 'Exams & Results', path: '/results' },
-    { name: 'Finance Summary', path: '/finance' },
-    { name: 'Academic Periods', path: '/academic-periods' },
-    { name: 'Academic Reports', path: '/dashboard' },
-    { name: 'Announcements', path: '/dashboard' },
-    { name: 'Analytics', path: '/dashboard' },
-    { name: 'Profile', path: '/dashboard' },
-    { name: 'Settings', path: '/dashboard' },
-  ] : isReceptionist ? [
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'Students', path: '/students' },
-    { name: 'Teachers', path: '/teachers' },
-    { name: 'Classes & Sections', path: '/courses' },
-    { name: 'Admissions', path: '/students' },
-    { name: 'Guardians', path: '/guardians' },
-    { name: 'Profile', path: '/dashboard' },
-  ] : isSchoolAdmin ? [
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'Students', path: '/students' },
-    { name: 'Parents', path: '/students' },
-    { name: 'Academic Periods', path: '/academic-periods' },
-    { name: 'Teachers', path: '/teachers' },
-    { name: 'Classes & Sections', path: '/courses' },
-    { name: 'Attendance', path: '/attendance' },
-    { name: 'Exams & Results', path: '/results' },
-    { name: 'Fees & Payments', path: '/finance' },
-    { name: 'Finance History', path: '/finance-operations' },
-    { name: 'Announcements', path: '/dashboard' },
-    { name: 'Analytics', path: '/dashboard' },
-    { name: 'Settings', path: '/dashboard' },
-    { name: 'Profile', path: '/dashboard' },
-  ] : [
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'Students', path: '/students' },
-    { name: 'Teachers', path: '/teachers' },
-    { name: 'Courses', path: '/courses' },
-    { name: 'Attendance', path: '/attendance' },
-    { name: 'Finance', path: '/finance', roles: ['admin', 'student'] },
-    { name: 'Results', path: '/results' },
-  ].filter(item => !item.roles || item.roles.includes(currentUser.role));
+  const role = currentUser.role || 'school_admin';
+
+  const roleNameMap = {
+    super_admin: 'Super Admin',
+    school_admin: 'School Admin',
+    admin: 'School Admin',
+    principal: 'Principal',
+    accountant: 'Accountant',
+    receptionist: 'Receptionist',
+    teacher: 'Faculty Lead',
+    student: 'Student',
+    parent: 'Guardian',
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/login');
+  };
+
+  // Structured navigation categories matching Stitch UI
+  const getNavSections = () => {
+    if (role === 'super_admin') {
+      return [
+        {
+          group: 'PLATFORM OPERATIONS',
+          items: [
+            { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+            { name: 'Schools & Tenancy', path: '/platform', icon: Layers },
+          ],
+        },
+      ];
+    }
+
+    if (role === 'student') {
+      return [
+        {
+          group: 'OVERVIEW',
+          items: [{ name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }],
+        },
+        {
+          group: 'ACADEMICS',
+          items: [
+            { name: 'Class Schedule', path: '/courses', icon: BookOpen },
+            { name: 'Digital Attendance', path: '/attendance', icon: ClipboardCheck },
+            { name: 'Exams & Results', path: '/results', icon: Award },
+          ],
+        },
+        {
+          group: 'FINANCE',
+          items: [{ name: 'Tuition & Invoices', path: '/finance', icon: CreditCard }],
+        },
+        {
+          group: 'OPPORTUNITIES',
+          items: [{ name: 'Alumni Mentorship', path: '/mentorship', icon: Sparkles }],
+        },
+      ];
+    }
+
+    if (role === 'teacher') {
+      return [
+        {
+          group: 'OVERVIEW',
+          items: [{ name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }],
+        },
+        {
+          group: 'CLASSROOM',
+          items: [
+            { name: 'Students', path: '/students', icon: GraduationCap },
+            { name: 'Courses & Units', path: '/courses', icon: BookOpen },
+            { name: 'Attendance Sessions', path: '/attendance', icon: ClipboardCheck },
+            { name: 'Results & Scoring', path: '/results', icon: Award },
+          ],
+        },
+        {
+          group: 'CAREER & NETWORK',
+          items: [{ name: 'Alumni Mentorship', path: '/mentorship', icon: Briefcase }],
+        },
+      ];
+    }
+
+    if (role === 'parent') {
+      return [
+        {
+          group: 'OVERVIEW',
+          items: [{ name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }],
+        },
+        {
+          group: 'FAMILY PORTAL',
+          items: [
+            { name: 'Student Ledgers', path: '/guardians', icon: Users },
+            { name: 'Attendance Records', path: '/attendance', icon: ClipboardCheck },
+            { name: 'Academic Results', path: '/results', icon: Award },
+            { name: 'Invoices & Payments', path: '/finance', icon: CreditCard },
+          ],
+        },
+      ];
+    }
+
+    // Default: School Admin, Principal, Teacher, Accountant, Receptionist
+    const sections = [
+      {
+        group: 'OVERVIEW',
+        items: [
+          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+        ],
+      },
+      {
+        group: 'PEOPLE',
+        items: [
+          { name: 'Students', path: '/students', icon: GraduationCap },
+          ...(role !== 'accountant' ? [{ name: 'Teachers', path: '/teachers', icon: UserCheck }] : []),
+          { name: 'Parents & Guardians', path: '/guardians', icon: Users },
+          ...(role === 'school_admin' || role === 'admin' ? [{ name: 'Users & Roles', path: '/platform', icon: ShieldAlert }] : []),
+        ],
+      },
+      {
+        group: 'ACADEMICS',
+        items: [
+          { name: 'Academic Years', path: '/academic-periods', icon: Calendar },
+          { name: 'Courses & Units', path: '/courses', icon: BookOpen },
+        ],
+      },
+      {
+        group: 'CLASSROOM',
+        items: [
+          { name: 'Attendance Sessions', path: '/attendance', icon: ClipboardCheck },
+          { name: 'Results & Scoring', path: '/results', icon: Award },
+        ],
+      },
+      {
+        group: 'FINANCE',
+        items: [
+          { name: 'Invoices', path: '/finance', icon: Receipt },
+          { name: 'Fee Operations', path: '/finance-operations', icon: CreditCard },
+        ],
+      },
+      {
+        group: 'CAREER & NETWORK',
+        items: [
+          { name: 'Alumni Mentorship', path: '/mentorship', icon: Briefcase },
+        ],
+      },
+    ];
+
+    return sections;
+  };
+
+  const navSections = getNavSections()
+    .map((sec) => ({
+      ...sec,
+      items: sec.items.filter((item) => canAccessRoute(item.path, role)),
+    }))
+    .filter((sec) => sec.items.length > 0);
 
   return (
-    <aside className="w-64 bg-slate-800 text-white flex flex-col h-screen fixed left-0 top-0">
-      <div className="h-16 flex items-center justify-center border-b border-slate-700">
-        <h1 className="text-xl font-bold">{isSuperAdmin ? 'Super Admin' : isParent ? 'Parent / Guardian' : isAccountant ? 'Accountant' : isPrincipal ? 'Principal' : isReceptionist ? 'Receptionist' : isSchoolAdmin ? 'School Admin' : 'Admin'}</h1>
+    <aside className="w-64 bg-white border-r border-slate-200/90 flex flex-col h-screen fixed left-0 top-0 z-30 select-none">
+      {/* Top Brand Header */}
+      <div className="h-18 px-5 border-b border-slate-100 flex items-center justify-between">
+        <BrandLogo
+          subtitle={currentUser.school_name || 'H-School'}
+          role={roleNameMap[role] || 'School Admin'}
+        />
       </div>
-      <nav className="flex-1 overflow-y-auto py-4">
-        <ul className="space-y-1">
-          {menuList.map((item) => (
-            <li key={item.name}>
-              <NavLink
-                to={item.path}
-                className={({ isActive }) =>
-                  `block px-6 py-3 transition-colors ${
-                    isActive ? 'bg-slate-700 border-l-4 border-blue-500' : 'hover:bg-slate-700'
-                  }`
-                }
-              >
-                {item.name}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+
+      {/* Nav List */}
+      <nav className="flex-1 overflow-y-auto px-3.5 py-4 space-y-6">
+        {navSections.map((sec, secIdx) => (
+          <div key={secIdx} className="space-y-1">
+            <h3 className="px-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+              {sec.group}
+            </h3>
+            <div className="space-y-0.5 pt-1">
+              {sec.items.map((item) => {
+                const IconComponent = item.icon;
+                return (
+                  <NavLink
+                    key={item.path + item.name}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                        isActive
+                          ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/25'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      }`
+                    }
+                  >
+                    <IconComponent className="w-4 h-4 shrink-0" />
+                    <span>{item.name}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
-      <div className="p-4 border-t border-slate-700">
-        <button type="button" onClick={() => {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user');
-          navigate('/login', { replace: true });
-        }} className="block w-full text-center py-2 bg-red-600 hover:bg-red-700 rounded text-sm font-bold transition-colors">
-          Logout
-        </button>
+
+      {/* Footer Info & Sign out */}
+      <div className="p-3.5 border-t border-slate-100 bg-slate-50/50">
+        <div className="flex items-center justify-between px-2 py-1.5 text-[11px] text-slate-500">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span className="font-medium text-slate-600">Active AY 2024–25</span>
+          </div>
+          <button
+            onClick={handleLogout}
+            title="Sign out"
+            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </aside>
   );

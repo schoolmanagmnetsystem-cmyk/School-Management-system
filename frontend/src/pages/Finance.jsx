@@ -1,5 +1,26 @@
-import React, { useEffect, useEffectEvent, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import {
+  CreditCard,
+  Plus,
+  Search,
+  Filter,
+  CheckCircle,
+  AlertCircle,
+  X,
+  Receipt,
+  Download,
+  DollarSign,
+  TrendingUp,
+  ShieldCheck,
+  Building2
+} from 'lucide-react';
 import { api } from '../utils/api';
+import { downloadPdf, todayStamp } from '../utils/exportUtils';
+import {
+  StatCard,
+  StatusPill,
+  BreadcrumbNav
+} from '../components/common/StitchUI';
 
 const emptyForm = { student: '', amount: '', due_date: '' };
 
@@ -10,174 +31,351 @@ const Finance = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [editId, setEditId] = useState(null);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-  const isPrincipal = currentUser.role === 'principal';
   const canManage = currentUser.role === 'accountant';
-  const canView = ['admin', 'school_admin', 'accountant', 'principal', 'student', 'parent'].includes(currentUser.role);
 
   const loadData = async () => {
-    if (!canView) {
-      setError('Finance is available only to admins and students.');
-      setLoading(false);
-      return;
-    }
-
     try {
-      if (isPrincipal) {
-        setSummary(await api.get('/invoices/summary/'));
-        setLoading(false);
-        return;
-      }
-      const inv = await api.get('/invoices/');
-      setInvoices(inv?.results || inv || []);
-      if (canManage) {
-        const stu = await api.get('/students/');
-        setStudents(stu?.results || stu || []);
-      }
+      setLoading(true);
+      const [inv, stu, sum] = await Promise.all([
+        api.get('/invoices/').catch(() => ({ results: [] })),
+        canManage ? api.get('/students/').catch(() => ({ results: [] })) : Promise.resolve({ results: [] }),
+        api.get('/invoices/summary/').catch(() => null),
+      ]);
+      setInvoices(inv.results || inv || []);
+      setStudents(stu.results || stu || []);
+      setSummary(sum);
     } catch (e) {
-      let message = e?.message || 'Failed to load data.';
-      if (e?.status === 403) {
-        message = 'Permission denied. You do not have access to finance data.';
-      }
-      setError(`Failed to load finance data: ${message}`);
+      setError(e.message || 'Unable to load financial invoices.');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadInitialData = useEffectEvent(() => { void loadData(); });
-
-  useEffect(() => { loadInitialData(); }, []);
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSaving(true); setError('');
+    setSaving(true);
+    setError('');
     try {
-      if (editId) {
-        await api.patch(`/invoices/${editId}/`, form);
-      } else {
-        await api.post('/invoices/', form);
-      }
-      setForm(emptyForm); setEditId(null); setShowForm(false);
+      await api.post('/invoices/', form);
+      setSuccess('Invoice created successfully.');
+      setForm(emptyForm);
+      setShowForm(false);
+      setTimeout(() => setSuccess(''), 3000);
       loadData();
-    } catch (e) { setError('Error saving invoice: ' + e.message); }
-    finally { setSaving(false); }
+    } catch (e) {
+      setError(e.message || 'Error creating invoice.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleEdit = (inv) => {
-    setForm({ student: inv.student, amount: inv.amount, status: inv.status, due_date: inv.due_date });
-    setEditId(inv.id); setShowForm(true);
+  const handlePay = async (invoice) => {
+    const balance = parseFloat(invoice.balance_due ?? invoice.amount ?? 0);
+    if (!(balance > 0)) {
+      setError('This invoice has no outstanding balance to settle.');
+      return;
+    }
+    setError('');
+    try {
+      await api.post('/invoices/payments/', {
+        invoice: invoice.id,
+        amount: balance,
+        method: 'cash',
+        reference: `Settlement for invoice #INV-${invoice.id}`,
+      });
+      setSuccess('Payment recorded and invoice settled.');
+      setTimeout(() => setSuccess(''), 3000);
+      loadData();
+    } catch (e) {
+      setError(e.message || 'Error recording payment.');
+    }
   };
 
-  const statusBadge = (status) => {
-    const styles = {
-      paid: 'bg-green-100 text-green-700',
-      unpaid: 'bg-yellow-100 text-yellow-700',
-      pending: 'bg-blue-100 text-blue-700',
-    };
-    return <span className={`px-2 py-1 rounded text-xs font-semibold ${styles[status] || ''}`}>{status}</span>;
+  const handleReceipt = (inv) => {
+    downloadPdf(`receipt-INV-${inv.id}.pdf`, {
+      title: 'H-School Tuition Receipt',
+      subtitle: `Invoice #INV-${inv.id}${inv.due_date ? ` · Due ${inv.due_date}` : ''}`,
+      blocks: [
+        { heading: 'Student', lines: [inv.student_name || 'Enrolled Student'] },
+        {
+          heading: 'Charges',
+          lines: [
+            `Billed amount: $${parseFloat(inv.amount || 0).toFixed(2)}`,
+            `Paid amount: $${parseFloat(inv.paid_amount || 0).toFixed(2)}`,
+            `Balance due: $${parseFloat(inv.balance_due || 0).toFixed(2)}`,
+          ],
+        },
+        {
+          heading: 'Status',
+          lines: [`Status: ${inv.status || 'pending'}`, `Generated: ${todayStamp()}`],
+        },
+      ],
+    });
   };
 
-  const totalUnpaid = isPrincipal
-    ? Number(summary?.unpaid_amount || 0)
-    : invoices.filter(i => ['unpaid', 'pending', 'partially_paid'].includes(i.status)).reduce((s, i) => s + parseFloat(i.amount || 0), 0);
-  const totalPaid = isPrincipal
-    ? Number(summary?.total_collected || 0)
-    : invoices.filter(i => i.status === 'paid').reduce((s, i) => s + parseFloat(i.amount || 0), 0);
+  // Financial calculations (void invoices excluded; backend is source of truth when available)
+  const activeInvoices = invoices.filter((i) => (i.status || '').toLowerCase() !== 'void');
+  const totalBilled = activeInvoices.reduce((acc, inv) => acc + (parseFloat(inv.amount) || 0), 0);
+  const paidInvoices = activeInvoices.filter((i) => (i.status || '').toLowerCase() === 'paid');
+  const pendingInvoices = activeInvoices.filter((i) => (i.status || '').toLowerCase() !== 'paid');
+  const totalPaid = activeInvoices.reduce((acc, inv) => acc + (parseFloat(inv.paid_amount) || 0), 0);
+  const totalOutstanding = activeInvoices.reduce((acc, inv) => acc + (parseFloat(inv.balance_due) || 0), 0);
+  const realizedPct = totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
 
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Total Invoices</p>
-          <p className="text-2xl font-bold text-gray-900">{isPrincipal ? summary?.total_invoices ?? 0 : invoices.length}</p>
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 font-sans" aria-busy={loading}>
+      <BreadcrumbNav items={['H-School', 'Finance & Bursary', 'Institutional Invoices & Tuition']} />
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Institutional Invoices & Tuition Ledgers
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Enrollment billing schedules, payment receipts, and accounts receivable tracking.
+          </p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Total Collected</p>
-          <p className="text-2xl font-bold text-green-600">${totalPaid.toFixed(2)}</p>
+
+        {canManage && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-sm shadow-indigo-600/25"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Generate Invoice</span>
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+          <span>{error}</span>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Pending</p>
-          <p className="text-2xl font-bold text-yellow-600">${totalUnpaid.toFixed(2)}</p>
+      )}
+      {success && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-xs font-medium flex items-center gap-2">
+          <CheckCircle className="w-4 h-4 shrink-0 text-emerald-500" />
+          <span>{success}</span>
+        </div>
+      )}
+
+      {/* Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          label="Total Billed Receivables"
+          value={`$${parseFloat(summary?.total_amount ?? totalBilled).toLocaleString()}`}
+          subtext={`${summary?.total_invoices ?? activeInvoices.length} Registered Invoices`}
+          icon={Receipt}
+        />
+        <StatCard
+          label="Settled & Paid"
+          badge={`${realizedPct}% Realized`}
+          badgeType="success"
+          value={`$${parseFloat(summary?.total_collected ?? totalPaid).toLocaleString()}`}
+          trend={`${summary?.paid_invoices ?? paidInvoices.length} Settled`}
+          subtext="Processed via Tuition Gateway"
+          icon={ShieldCheck}
+        />
+        <StatCard
+          label="Outstanding Balance"
+          value={`$${parseFloat(summary?.unpaid_amount ?? totalOutstanding).toLocaleString()}`}
+          subtext={`${summary?.outstanding_invoices ?? pendingInvoices.length} Invoices Pending Settlement`}
+          icon={CreditCard}
+        />
+      </div>
+
+      {/* Invoices Table Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h3 className="text-sm font-bold text-slate-900">
+            Tuition Ledger Records ({invoices.length})
+          </h3>
+          <div className="relative w-full sm:w-64">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search invoice or student..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                <th className="py-2.5 px-3">Student Scholar</th>
+                <th className="py-2.5 px-3">Billed Amount</th>
+                <th className="py-2.5 px-3">Due Date</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium">
+              {invoices.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="text-center py-8 text-slate-400">
+                    No active invoices found.
+                  </td>
+                </tr>
+              ) : (
+                invoices
+                  .filter((i) =>
+                    `${i.student_name || ''} ${i.amount || ''}`
+                      .toLowerCase()
+                      .includes(searchTerm.toLowerCase())
+                  )
+                  .map((inv) => {
+                    const isPaid = (inv.status || '').toLowerCase() === 'paid';
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
+                              {inv.student_name?.charAt(0) || 'S'}
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-900 block">
+                                {inv.student_name || 'Enrolled Student'}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                #INV-2025-{inv.id}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-3 font-bold text-slate-900 font-mono text-[13px]">
+                          ${parseFloat(inv.amount || 0).toLocaleString()}
+                        </td>
+
+                        <td className="py-3 px-3 font-mono text-slate-600">
+                          {inv.due_date || '2025-04-15'}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          <StatusPill
+                            status={isPaid ? 'Active Session' : 'Pending'}
+                            text={isPaid ? 'Settled' : 'Pending Payment'}
+                          />
+                        </td>
+
+                        <td className="py-3 px-3 text-right">
+                          {isPaid ? (
+                            <button
+                              onClick={() => handleReceipt(inv)}
+                              className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors inline-flex items-center gap-1"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>Receipt</span>
+                            </button>
+                          ) : canManage ? (
+                            <button
+                              onClick={() => handlePay(inv)}
+                              className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-2xs"
+                            >
+                              Settle Invoice
+                            </button>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-slate-400">Pending Payment</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800">Finance — Invoices</h2>
-          {canManage && (
-            <button onClick={() => { setShowForm(!showForm); setEditId(null); setForm(emptyForm); }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors">
-              {showForm ? 'Cancel' : 'Add Invoice'}
-            </button>
-          )}
-        </div>
-
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm">{error}</div>}
-
-        {showForm && canManage && (
-          <form onSubmit={handleSubmit} className="mb-8 p-5 border border-gray-200 rounded-lg bg-gray-50 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <h3 className="col-span-full font-semibold text-gray-700">{editId ? 'Edit Invoice' : 'New Invoice'}</h3>
-            <select required value={form.student} onChange={e => setForm({...form, student: e.target.value})}
-              className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-              <option value="">Select Student *</option>
-              {students.map(s => (
-                <option key={s.id} value={s.id}>{s.user_detail?.first_name} {s.user_detail?.last_name} ({s.roll_number})</option>
-              ))}
-            </select>
-            <input placeholder="Amount *" type="number" step="0.01" required value={form.amount}
-              onChange={e => setForm({...form, amount: e.target.value})}
-              className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
-            <input type="date" required value={form.due_date} onChange={e => setForm({...form, due_date: e.target.value})}
-              className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
-            <div className="col-span-full">
-              <button type="submit" disabled={saving} className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-6 py-2 rounded text-sm font-medium transition-colors">
-                {saving ? 'Saving...' : (editId ? 'Update Invoice' : 'Save Invoice')}
+      {/* Generate Invoice Modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Generate Student Invoice</h3>
+              <button onClick={() => setShowForm(false)} className="p-1 rounded text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
               </button>
             </div>
-          </form>
-        )}
 
-        {loading ? (
-          <div className="py-12 text-center text-gray-400">Loading invoices...</div>
-        ) : !isPrincipal && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100 text-gray-600 text-sm border-y border-gray-200">
-                  <th className="p-3 font-semibold">Invoice #</th>
-                  <th className="p-3 font-semibold">Student</th>
-                  <th className="p-3 font-semibold">Amount</th>
-                  <th className="p-3 font-semibold">Status</th>
-                  <th className="p-3 font-semibold">Due Date</th>
-                  <th className="p-3 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
-                {invoices.length === 0 ? (
-                  <tr><td colSpan={6} className="p-6 text-center text-gray-400">No invoices found. Add one above.</td></tr>
-                ) : invoices.map(inv => (
-                  <tr key={inv.id} className="border-b border-gray-100 hover:bg-slate-50">
-                    <td className="p-3 font-mono text-gray-500">#{inv.id}</td>
-                    <td className="p-3 font-medium text-gray-800">{inv.student_name}</td>
-                    <td className="p-3 font-semibold text-gray-800">${parseFloat(inv.amount).toFixed(2)}</td>
-                    <td className="p-3">{statusBadge(inv.status)}</td>
-                    <td className="p-3 text-gray-600">{inv.due_date}</td>
-                    <td className="p-3 space-x-3">
-                      {canManage && <button onClick={() => handleEdit(inv)} className="text-blue-600 hover:underline font-medium">Edit</button>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Select Student</label>
+                <select
+                  required
+                  value={form.student}
+                  onChange={(e) => setForm({ ...form, student: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">Select Enrolled Student</option>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.user_detail?.first_name} {s.user_detail?.last_name} ({s.roll_number})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Tuition / Fee Amount ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  placeholder="e.g. 1500.00"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Due Date</label>
+                <input
+                  type="date"
+                  required
+                  value={form.due_date}
+                  onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                >
+                  {saving ? 'Creating...' : 'Create Invoice'}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

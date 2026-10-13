@@ -10,6 +10,29 @@ from core.permissions import IsAdminOrTeacherResultPermission, assert_student_ow
 from accounts.periods import resolve_school_period
 from accounts.audit import record_audit
 
+
+class CanPublishResults(BasePermission):
+    """Only a principal or school administrator may publish results."""
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role in {'principal', 'admin', 'school_admin'}
+        )
+
+
+class CanUnpublishResults(BasePermission):
+    """Only a school administrator may unpublish results."""
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role in {'admin', 'school_admin'}
+        )
+
+
 class ResultViewSet(viewsets.ModelViewSet):
     queryset = Result.objects.select_related('student__user', 'student__school', 'course__school').all()
     serializer_class = ResultSerializer
@@ -32,10 +55,8 @@ class ResultViewSet(viewsets.ModelViewSet):
             return queryset.distinct()
         return self.queryset.none()
 
-    @action(detail=True, methods=['post'], permission_classes=[])
+    @action(detail=True, methods=['post'], permission_classes=[CanPublishResults])
     def publish(self, request, pk=None):
-        if not request.user.is_authenticated or request.user.role not in {'principal', 'admin', 'school_admin'}:
-            raise PermissionDenied('Only a principal or school administrator can publish results.')
         result = self.get_object()
         if result.student.school_id != request.user.school_id:
             raise PermissionDenied('You can only publish results in your school.')
@@ -49,10 +70,8 @@ class ResultViewSet(viewsets.ModelViewSet):
         })
         return Response(self.get_serializer(result).data)
 
-    @action(detail=True, methods=['post'], permission_classes=[])
+    @action(detail=True, methods=['post'], permission_classes=[CanUnpublishResults])
     def unpublish(self, request, pk=None):
-        if not request.user.is_authenticated or request.user.role not in {'admin', 'school_admin'}:
-            raise PermissionDenied('Only a school administrator can unpublish results.')
         result = self.get_object()
         if result.student.school_id != request.user.school_id:
             raise PermissionDenied('You can only unpublish results in your school.')

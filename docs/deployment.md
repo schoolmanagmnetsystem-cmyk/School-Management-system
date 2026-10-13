@@ -22,6 +22,16 @@ Configure these variables in the deployment platform's secret/environment manage
 
 Set the production frontend origin explicitly. Keep `CORS_ALLOW_CREDENTIALS=false` unless a reviewed cross-origin cookie-authentication requirement exists; the API currently uses bearer tokens.
 
+## Account Provisioning
+
+Use `python manage.py createsuperuser` for a platform `super_admin`. Create
+school-scoped users through the authenticated school administration workflow,
+which hashes passwords and creates the required role profile. If a database
+repair is unavoidable, call `set_password()` from Django's shell; never write
+the raw password to the `password` column. A valid password hash alone is not
+enough for student, teacher, or parent accounts: those roles also require
+their corresponding profile and an active school.
+
 For a Vite build served from the same origin as the API proxy, the frontend defaults to `/api`. For a separate API host, build with `VITE_API_BASE_URL=https://api.example.com/api`. The frontend also accepts the backend origin without the `/api` suffix and adds it automatically.
 
 ## Release Steps

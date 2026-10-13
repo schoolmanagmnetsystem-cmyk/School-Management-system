@@ -1,5 +1,4 @@
 from rest_framework import serializers
-from rest_framework import serializers
 from accounts.models import AcademicYear
 from .models import FeeStructure, Invoice, Payment
 
@@ -7,11 +6,13 @@ class InvoiceSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.user.get_full_name', read_only=True)
     student_id = serializers.IntegerField(source='student.id', read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
+    paid_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    balance_due = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
         model = Invoice
-        fields = ('id', 'student', 'student_id', 'student_name', 'amount', 'status', 'due_date', 'created_at', 'is_overdue', 'void_reason', 'voided_at', 'academic_year', 'term')
-        read_only_fields = ('id', 'status', 'created_at', 'is_overdue', 'void_reason', 'voided_at')
+        fields = ('id', 'student', 'student_id', 'student_name', 'amount', 'status', 'due_date', 'created_at', 'is_overdue', 'void_reason', 'voided_at', 'academic_year', 'term', 'paid_amount', 'balance_due')
+        read_only_fields = ('id', 'status', 'created_at', 'is_overdue', 'void_reason', 'voided_at', 'paid_amount', 'balance_due')
 
     def validate_student(self, student):
         request = self.context.get('request')

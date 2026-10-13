@@ -97,6 +97,30 @@ python manage.py migrate
 python manage.py createsuperuser
 ```
 
+`createsuperuser` creates a `super_admin` account. For school-scoped accounts,
+use the authenticated administrative workflow in the application or API so the
+school and role-specific profile are created together.
+
+Never insert a plaintext password into the database. If an account must be
+repaired through Django's shell, use Django's password hasher:
+
+```powershell
+python manage.py shell
+```
+
+```python
+from accounts.models import CustomUser
+user = CustomUser.objects.get(username='existing-username')
+user.set_password('new-password')
+user.is_active = True
+user.save(update_fields=['password', 'is_active'])
+```
+
+Direct database inserts must provide a unique username and email, a supported
+role, an active school for non-`super_admin` users, and the required
+`Student`, `Teacher`, or `Guardian` profile for student, teacher, or parent
+accounts. The login endpoint intentionally rejects incomplete account setup.
+
 Start the backend API:
 
 ```powershell

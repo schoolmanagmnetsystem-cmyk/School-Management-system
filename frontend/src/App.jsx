@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Layouts
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -21,28 +21,24 @@ import PlatformAdmin from './pages/PlatformAdmin';
 import AcademicPeriods from './pages/AcademicPeriods';
 import GuardianPortal from './pages/GuardianPortal';
 import FinanceOperations from './pages/FinanceOperations';
-
-const ROLE_ACCESS = {
-  '/platform': ['super_admin'],
-  '/academic-periods': ['school_admin', 'admin', 'principal'],
-  '/guardians': ['school_admin', 'admin', 'principal', 'receptionist', 'parent'],
-  '/finance-operations': ['school_admin', 'admin', 'accountant'],
-  '/students': ['school_admin', 'admin', 'principal', 'accountant', 'receptionist', 'teacher', 'student', 'parent'],
-  '/teachers': ['school_admin', 'admin', 'principal', 'receptionist', 'teacher'],
-  '/courses': ['school_admin', 'admin', 'principal', 'receptionist', 'teacher', 'student', 'parent'],
-  '/attendance': ['school_admin', 'admin', 'principal', 'teacher', 'student', 'parent'],
-  '/finance': ['school_admin', 'admin', 'principal', 'accountant', 'student', 'parent'],
-  '/results': ['school_admin', 'admin', 'principal', 'teacher', 'student', 'parent'],
-};
+import Mentorship from './pages/Mentorship';
+import { ROLE_ACCESS } from './utils/roleAccess';
 
 const RequireAuth = ({ children }) => {
+  const location = useLocation();
   const token = localStorage.getItem('access_token');
   if (!token) {
     return <Navigate to="/login" replace />;
   }
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const path = window.location.pathname;
-  const allowedRoles = ROLE_ACCESS[path];
+
+  let user = {};
+  try {
+    user = JSON.parse(localStorage.getItem('user') || '{}');
+  } catch {
+    user = {};
+  }
+
+  const allowedRoles = ROLE_ACCESS[location.pathname];
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -56,8 +52,6 @@ function App() {
         {/* Public Routes */}
         <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Navigate to="/login" replace />} />
-        <Route path="/signup" element={<Navigate to="/login" replace />} />
 
         {/* Dashboard Routes wrapped in DashboardLayout and protected */}
         <Route element={<RequireAuth><DashboardLayout /></RequireAuth>}>
@@ -72,6 +66,7 @@ function App() {
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/finance" element={<Finance />} />
           <Route path="/results" element={<Results />} />
+          <Route path="/mentorship" element={<Mentorship />} />
         </Route>
 
         {/* Fallback */}
@@ -82,3 +77,4 @@ function App() {
 }
 
 export default App;
+

@@ -181,12 +181,27 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('username')
+        identifier = str(request.data.get('username', '')).strip()
         password = request.data.get('password')
+        username = identifier
+        if '@' in identifier:
+            matched_user = CustomUser.objects.filter(email__iexact=identifier).only('username').first()
+            username = matched_user.username if matched_user else identifier
         user = authenticate(username=username, password=password)
         if user:
+            valid_roles = {role for role, _ in CustomUser.ROLE_CHOICES}
+            if user.role not in valid_roles:
+                return Response({'error': 'This account has an unsupported role. Contact a school administrator.'}, status=403)
             if user.role != 'super_admin' and (not user.school_id or not user.school.is_active):
                 return Response({'error': 'This account is not assigned to an active school.'}, status=403)
+            profile_names = {
+                'student': 'student_profile',
+                'teacher': 'teacher_profile',
+                'parent': 'guardian_profile',
+            }
+            profile_name = profile_names.get(user.role)
+            if profile_name and not hasattr(user, profile_name):
+                return Response({'error': 'This account setup is incomplete. Contact a school administrator.'}, status=403)
             refresh = RefreshToken.for_user(user)
             return Response({
                 'user': UserSerializer(user).data,

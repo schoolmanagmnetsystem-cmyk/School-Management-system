@@ -29,17 +29,18 @@ function getHeaders() {
   const token = localStorage.getItem('access_token');
   return {
     'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
 export async function apiFetch(path, options = {}) {
+  const hadToken = Boolean(localStorage.getItem('access_token'));
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: { ...getHeaders(), ...(options.headers || {}) },
   });
 
-  if (res.status === 401) {
+  if (res.status === 401 && hadToken) {
     localStorage.clear();
     window.location.href = '/login';
     throw new ApiError('Unauthorized', 401, null);
