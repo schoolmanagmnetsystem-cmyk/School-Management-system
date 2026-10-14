@@ -37,15 +37,27 @@ const Courses = () => {
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [students, setStudents] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
+  const [enrollmentCourse, setEnrollmentCourse] = useState(null);
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [savingEnrollment, setSavingEnrollment] = useState(false);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [c, t] = await Promise.all([api.get('/courses/'), api.get('/teachers/')]);
+      const [c, t, s, e] = await Promise.all([
+        api.get('/courses/'),
+        api.get('/teachers/'),
+        api.get('/students/'),
+        api.get('/courses/enrollments/'),
+      ]);
       setCourses(c.results || c || []);
       setTeachers(t.results || t || []);
-    } catch {
-      setError('Failed to load courses data.');
+      setStudents(s.results || s || []);
+      setEnrollments(e.results || e || []);
+    } catch (err) {
+      setError(err.message || 'Failed to load courses data.');
     } finally {
       setLoading(false);
     }
@@ -93,8 +105,61 @@ const Courses = () => {
       setSuccess('Course removed.');
       setTimeout(() => setSuccess(''), 3000);
       loadData();
-    } catch {
-      setError('Failed to delete course.');
+    } catch (err) {
+      setError(err.message || 'Failed to delete course.');
+    }
+  };
+
+  const handleOpenEnrollment = (course) => {
+    const activeStudentIds = enrollments
+      .filter((enrollment) => String(enrollment.course) === String(course.id) && enrollment.is_active !== false)
+      .map((enrollment) => String(enrollment.student));
+    setEnrollmentCourse(course);
+    setSelectedStudentIds(activeStudentIds);
+    setError('');
+  };
+
+  const handleSaveEnrollment = async () => {
+    if (!enrollmentCourse) return;
+    setSavingEnrollment(true);
+    setError('');
+    try {
+      const selected = new Set(selectedStudentIds.map(String));
+      const existing = enrollments.filter(
+        (enrollment) => String(enrollment.course) === String(enrollmentCourse.id)
+      );
+      const operations = [];
+
+      students.forEach((student) => {
+        const enrollment = existing.find(
+          (item) => String(item.student) === String(student.id)
+        );
+        const shouldBeActive = selected.has(String(student.id));
+        if (enrollment && enrollment.is_active !== shouldBeActive) {
+          operations.push(api.patch(`/courses/enrollments/${enrollment.id}/`, {
+            is_active: shouldBeActive,
+          }));
+        } else if (!enrollment && shouldBeActive) {
+          operations.push(api.post('/courses/enrollments/', {
+            course: Number(enrollmentCourse.id),
+            student: Number(student.id),
+          }));
+        }
+      });
+
+      const results = await Promise.allSettled(operations);
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure) {
+        throw failure.reason;
+      }
+      setSuccess('Course roster updated successfully.');
+      setEnrollmentCourse(null);
+      setTimeout(() => setSuccess(''), 3000);
+      await loadData();
+    } catch (err) {
+      setError(err.message || 'Unable to update the course roster.');
+    } finally {
+      setSavingEnrollment(false);
     }
   };
 
@@ -236,6 +301,13 @@ const Courses = () => {
                         <td className="py-3 px-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button
+                              onClick={() => handleOpenEnrollment(c)}
+                              title="Manage enrolled students"
+                              className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                            >
+                              <Users className="w-3.5 h-3.5" />
+                            </button>
+                            <button
                               onClick={() => handleEdit(c)}
                               title="Edit"
                               className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
@@ -331,6 +403,68 @@ const Courses = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {enrollmentCourse && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Manage Course Roster</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  {enrollmentCourse.code} · {enrollmentCourse.name}
+                </p>
+              </div>
+              <button onClick={() => setEnrollmentCourse(null)} className="p-1 rounded text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto space-y-2">
+              {students.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-6">No students are available to enroll.</p>
+              ) : (
+                students.map((student) => {
+                  const name = `${student.user_detail?.first_name || ''} ${student.user_detail?.last_name || ''}`.trim();
+                  const checked = selectedStudentIds.some((id) => String(id) === String(student.id));
+                  return (
+                    <label key={student.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setSelectedStudentIds((current) =>
+                          checked
+                            ? current.filter((id) => String(id) !== String(student.id))
+                            : [...current, String(student.id)]
+                        )}
+                      />
+                      <span className="font-semibold text-slate-800">{name || 'Unnamed student'}</span>
+                      <span className="text-slate-400">{student.roll_number || ''}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEnrollmentCourse(null)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEnrollment}
+                disabled={savingEnrollment}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+              >
+                {savingEnrollment ? 'Saving...' : 'Save Roster'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -23,6 +23,7 @@ class CourseEnrollmentSerializer(serializers.ModelSerializer):
         model = CourseEnrollment
         fields = ('id', 'course', 'student', 'enrolled_at', 'is_active')
         read_only_fields = ('id', 'enrolled_at')
+        validators = []
 
     def validate(self, attrs):
         request = self.context.get('request')
@@ -35,6 +36,13 @@ class CourseEnrollmentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('You can only enroll students in courses at your school.')
         if user and student and student.school_id != user.school_id:
             raise serializers.ValidationError('You can only enroll students from your school.')
+        if self.instance is None and course and student and CourseEnrollment.objects.filter(
+            course=course, student=student
+        ).exists():
+            raise serializers.ValidationError({
+                'student': 'This student already has an enrollment for the selected course. '
+                'Reactivate the existing enrollment instead.'
+            })
         return attrs
 
     def create(self, validated_data):

@@ -3,7 +3,7 @@
 **Product:** H-School (unified school management platform)
 **Stack:** Django 6 + Django REST Framework + SimpleJWT + django-filter (backend) · React 19 + Vite + React Router + Tailwind CSS 4 + Recharts (frontend)
 **Database:** SQLite (development) / PostgreSQL (production)
-**Document status:** Reflects the current implementation, including the functionality/completeness pass described in the change log at the end.
+**Document status:** Audit and verification record for the current implementation. "Implemented" below means the route and UI path exist and are covered by the available checks; it does not imply production deployment verification.
 
 ---
 
@@ -46,7 +46,7 @@ Legend: **Implemented** — backed by real API + working UI · **Partial** — w
 - Metric cards, a records-summary panel, and a present/absent/late attendance breakdown render from real data. When the API returns no trend series, the chart area shows an empty state rather than fabricated values.
 
 ### 3.3 Students — Implemented / Partial
-- Full CRUD via `/api/students/` (role-scoped querysets; students see only themselves, teachers see their enrolled students, parents see their children).
+- Role-scoped list/retrieve/update via `/api/students/` (students see only themselves, teachers see their enrolled students, parents see their children). Direct student creation is intentionally disabled; staff provisioning uses `/api/auth/register/`.
 - Actions: `promote` and `deactivate` (administrator only), with an academic-history record.
 - Student list, search/filter, and "Export Analytics (PDF)" generate a real PDF.
 - Partial: the admissions "pipeline"/applicant-scoring section is presentational.
@@ -89,10 +89,10 @@ Legend: **Implemented** — backed by real API + working UI · **Partial** — w
 ### 3.11 Platform Admin — Implemented
 - Super-admin school and user administration via `/api/auth/schools/` and `/api/auth/users/`.
 
-### 3.12 Mentorship — Not implemented (UI shell only)
-- There is **no backend module** for mentorship. The page currently shows sample content.
-- Its "Download Report (PDF)" and "Download Matrix" actions now generate real PDFs from the on-page data, but the underlying data has no API source.
-- **Action item (deferred by request):** design and implement mentorship models/endpoints in a later pass; the page should then be wire up to real data.
+### 3.12 Mentorship — Blocked (UI shell only)
+- There is **no backend module** for mentorship. The page's displayed rows are presentational and must not be treated as institutional records.
+- Its downloads are documents generated from the current page state, not authoritative server reports.
+- Models, permissions, persistence, and API endpoints are required before this feature can be marked implemented.
 
 ### 3.13 Public Landing Page — Implemented
 - The only page intentionally redesigned in this pass.
@@ -116,6 +116,33 @@ Legend: **Implemented** — backed by real API + working UI · **Partial** — w
 | `/api/dashboard/` | dashboard | role-aware summary payload |
 
 List endpoints return arrays (DRF pagination is not enabled); the frontend handles `data.results || data`.
+
+### 4.1 Endpoint inventory
+
+| Method | Route | Purpose | Allowed roles / scope |
+|---|---|---|---|
+| POST | `/api/auth/login/` | Issue JWT access/refresh tokens and user profile | Public; inactive, unassigned, or invalid accounts are rejected |
+| GET | `/api/auth/me/` | Return the authenticated profile | Any authenticated user; own profile |
+| GET/PATCH | `/api/auth/users/`, `/api/auth/users/{id}/` | List or update provisioned users | Super admin globally; school administrators within their school |
+| GET/POST/PATCH | `/api/auth/schools/`, `/api/auth/schools/{id}/` | Manage schools | Super admin only |
+| POST | `/api/auth/schools/{id}/admins/` | Provision a school administrator | Super admin; target school |
+| GET/POST/PATCH | `/api/auth/academic-years/`, `/api/auth/terms/` | Manage academic periods | Authorized school staff; school-scoped |
+| GET/PATCH | `/api/students/`, `/api/students/{id}/` | Read and update student records | Role-scoped; cross-school records are excluded |
+| POST | `/api/students/{id}/promote/` | Record promotion/history | School administrator; own school |
+| POST | `/api/students/{id}/deactivate/` | Deactivate a student | School administrator; own school |
+| GET/POST/PATCH/DELETE | `/api/teachers/` | Manage teacher profiles | Authorized staff; school-scoped |
+| GET/POST/PATCH/DELETE | `/api/courses/` | Manage courses and teacher assignment | School administrators for writes; authorized roles for reads |
+| GET/POST/PATCH/DELETE | `/api/courses/enrollments/` | Manage active course enrollment; DELETE deactivates without removing history | School administrators for writes; school-scoped |
+| GET/POST/PATCH | `/api/attendance/` | List and upsert attendance | Assigned teachers for current-day writes; staff/student/parent reads are scoped |
+| GET/POST/PATCH | `/api/results/` | Manage marks and grades | Assigned teachers for writes; staff reads are school-scoped |
+| POST | `/api/results/{id}/publish/` | Publish a result | Principal or school administrator; own school |
+| POST | `/api/results/{id}/unpublish/` | Unpublish with a required reason | School administrator; own school |
+| GET/POST/PATCH | `/api/invoices/` | Read and manage invoices | Accountant writes; authorized school-scoped reads |
+| GET/POST | `/api/invoices/payments/` | Read and record payments | Accountant; school-scoped |
+| GET | `/api/invoices/summary/` | Return finance aggregates | Accountant and authorized summary roles |
+| GET | `/api/dashboard/` | Return role-aware dashboard aggregates | Any authenticated user; role and school scoped |
+
+Create/update serializers validate relationships and the viewsets apply school and role querysets before object access. The frontend accepts both array and DRF `{results: [...]}` list responses.
 
 ---
 
@@ -187,8 +214,23 @@ Tests:
 ```
 cd backend
 $env:DEBUG="true"; $env:SECRET_KEY="local-test-secret"
+python manage.py check
+python manage.py makemigrations --check --dry-run
 python manage.py test accounts
 ```
+
+### 9.1 Verification recorded on 2026-10-14
+
+| Check | Result |
+|---|---|
+| `manage.py check` | Passed; no issues |
+| `manage.py makemigrations --check --dry-run` | Passed; no model changes detected |
+| `manage.py test` | Passed command, but discovered 0 tests because tests are scoped to `accounts` |
+| `manage.py test accounts` | Passed; 24 tests |
+| `npm run lint` (from `frontend`) | Passed with one existing `Finance.jsx` hook-dependency warning |
+| `npm run build` (from `frontend`) | Passed; Vite production bundle generated |
+
+The checks above are local validation only. No production API, deployment, browser workflow, or cross-environment PostgreSQL verification was performed.
 
 ---
 
@@ -204,4 +246,8 @@ python manage.py test accounts
 - Rewrote Attendance to be data-driven (real courses/enrollments, correct statuses, upsert save, honest metrics) while preserving its layout.
 - Fixed Finance (payment POST, duty-gated receipt, summary fields) and Results (real publish/unpublish).
 - Removed hardcoded login credentials from the SSO tab.
-- Added a backend RBAC/IDOR test suite (13 tests, all passing) and refactored result publish/unpublish onto explicit permission classes.
+- Added a backend RBAC/IDOR test suite (21 tests, all passing) and refactored result publish/unpublish onto explicit permission classes.
+- Hardened the shared frontend API utility to support empty responses, file responses, and `FormData` uploads while preserving JSON and array response compatibility.
+- Fixed course roster management: school admins can persist active enrollments, reactivate existing records, and deactivate enrollments without deleting history.
+- Fixed attendance editing for school admins and removed the unsafe fallback that treated every student as enrolled when a course roster was empty.
+- Added workflow coverage for duplicate enrollment validation, enrollment deactivation, attendance create/edit, and rejection of non-enrolled attendance.

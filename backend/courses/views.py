@@ -58,7 +58,7 @@ class CourseEnrollmentViewSet(viewsets.ModelViewSet):
     queryset = CourseEnrollment.objects.select_related('course', 'student', 'school')
     serializer_class = CourseEnrollmentSerializer
     permission_classes = [CourseEnrollmentPermission]
-    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
 
     def get_queryset(self):
         user = self.request.user
@@ -86,3 +86,8 @@ class CourseEnrollmentViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         enrollment = serializer.save()
         record_audit(self.request.user, 'enrollment.updated', enrollment, {'is_active': enrollment.is_active})
+
+    def perform_destroy(self, instance):
+        instance.is_active = False
+        instance.save(update_fields=['is_active'])
+        record_audit(self.request.user, 'enrollment.deactivated', instance, {'is_active': False})

@@ -19,6 +19,7 @@ from courses.models import Course, CourseEnrollment
 from results.models import Result
 from students.models import Student
 from teachers.models import Teacher
+from attendance.models import Attendance
 
 
 class RBACBaseTestCase(TestCase):
@@ -279,6 +280,70 @@ class TeacherScopeTests(RBACBaseTestCase):
         returned = set(self._ids(response))
         self.assertIn(self.student_a.id, returned)
         self.assertNotIn(self.student_a2.id, returned)
+
+
+class CourseAttendanceWorkflowTests(RBACBaseTestCase):
+    def test_admin_can_manage_enrollment_and_duplicate_is_rejected(self):
+        self.client.force_authenticate(self.admin_a)
+        create_response = self.client.post(
+            '/api/courses/enrollments/',
+            {'course': self.course_a.id, 'student': self.student_a2.id},
+            format='json',
+        )
+        self.assertEqual(create_response.status_code, 201, create_response.data)
+
+        duplicate_response = self.client.post(
+            '/api/courses/enrollments/',
+            {'course': self.course_a.id, 'student': self.student_a2.id},
+            format='json',
+        )
+        self.assertEqual(duplicate_response.status_code, 400)
+        self.assertIn('student', duplicate_response.data)
+
+        enrollment_id = create_response.data['id']
+        deactivate_response = self.client.delete(
+            f'/api/courses/enrollments/{enrollment_id}/'
+        )
+        self.assertEqual(deactivate_response.status_code, 204)
+        self.assertTrue(
+            CourseEnrollment.objects.get(id=enrollment_id).is_active is False
+        )
+
+    def test_admin_can_create_and_edit_attendance_for_enrolled_student(self):
+        self.client.force_authenticate(self.admin_a)
+        payload = {
+            'student': self.student_a.id,
+            'course': self.course_a.id,
+            'date': date.today().isoformat(),
+            'status': 'present',
+        }
+        create_response = self.client.post('/api/attendance/', payload, format='json')
+        self.assertEqual(create_response.status_code, 201, create_response.data)
+
+        attendance = Attendance.objects.get(student=self.student_a, course=self.course_a)
+        update_response = self.client.patch(
+            f'/api/attendance/{attendance.id}/',
+            {'status': 'late'},
+            format='json',
+        )
+        self.assertEqual(update_response.status_code, 200, update_response.data)
+        attendance.refresh_from_db()
+        self.assertEqual(attendance.status, 'late')
+
+    def test_teacher_cannot_mark_non_enrolled_student(self):
+        self.client.force_authenticate(self.teacher_user_a)
+        response = self.client.post(
+            '/api/attendance/',
+            {
+                'student': self.student_a2.id,
+                'course': self.course_a.id,
+                'date': date.today().isoformat(),
+                'status': 'present',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('student', response.data)
 
 
 class ResultPermissionTests(RBACBaseTestCase):

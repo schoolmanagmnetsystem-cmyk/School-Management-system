@@ -151,24 +151,20 @@ const Attendance = () => {
     const enrolledIds = enrollments
       .filter((e) => String(e.course) === String(selectedCourseId) && e.is_active !== false)
       .map((e) => e.student);
-    if (enrolledIds.length > 0) {
-      return students.filter((s) => enrolledIds.includes(s.id));
-    }
-    if (selectedGrade) {
-      return students.filter(
-        (s) => `${s.class_name || ''}${s.section ? ` - Section ${s.section}` : ''}`.trim() === selectedGrade
-      );
-    }
-    return students;
-  }, [students, enrollments, selectedCourseId, selectedGrade]);
+    return students.filter((s) => enrolledIds.some((id) => String(id) === String(s.id)));
+  }, [students, enrollments, selectedCourseId]);
 
   const handleOpenSessionSheet = (course) => {
     const courseId = course?.id ?? selectedCourseId;
     setSelectedCourseId(String(courseId));
     const initial = {};
-    const roster = enrollments.some((e) => String(e.course) === String(courseId))
-      ? students.filter((s) => enrolledIdsForCourse(courseId).includes(s.id))
-      : students;
+    const roster = students.filter((s) =>
+      enrolledIdsForCourse(courseId).some((id) => String(id) === String(s.id))
+    );
+    if (roster.length === 0) {
+      setError('This course has no active enrollments. Enroll students before marking attendance.');
+      return;
+    }
     roster.forEach((stu) => {
       const existing = records.find(
         (r) =>
@@ -185,6 +181,10 @@ const Attendance = () => {
   const handleSaveSession = async () => {
     if (!selectedCourseId) {
       setError('Select a course before saving attendance.');
+      return;
+    }
+    if (Object.keys(attendanceStatuses).length === 0) {
+      setError('There are no enrolled students to save for this course.');
       return;
     }
     setSavingAttendance(true);

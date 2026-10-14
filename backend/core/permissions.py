@@ -234,7 +234,7 @@ class IsAdminOrTeacherAttendancePermission(BasePermission):
         return False
 
     def has_object_permission(self, request, view, obj):
-        if request.user.role in {'admin', 'school_admin'} and request.method in SAFE_METHODS:
+        if request.user.role in {'admin', 'school_admin'}:
             return school_admin_owns_record(request.user, obj)
         if request.user.role == 'teacher':
             return bool(obj.course.teacher and obj.course.teacher.user == request.user and (
